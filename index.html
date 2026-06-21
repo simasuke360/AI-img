@@ -246,10 +246,26 @@ upload.addEventListener("change", (e) => {
     const img = new Image();
 
     img.onload = function() {
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+    const maxSize = 1500;
 
-      ctx.drawImage(img, 0, 0);
+let w = img.naturalWidth;
+let h = img.naturalHeight;
+
+if (w > maxSize || h > maxSize) {
+
+  if (w > h) {
+    h = h * (maxSize / w);
+    w = maxSize;
+  } else {
+    w = w * (maxSize / h);
+    h = maxSize;
+  }
+}
+
+canvas.width = w;
+canvas.height = h;
+
+ctx.drawImage(img, 0, 0, w, h);
       imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       originalData = new Uint8ClampedArray(imgData.data);
 
