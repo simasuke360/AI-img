@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>最終版 AI補正</title>
+<style>
+    #completeAnimation{
+  position: fixed;
+
+  top: 50%;
+  left: 50%;
+
+  transform: translate(-50%, -50%) scale(0.8);
+
+  background: rgba(0,0,0,0.8);
+
+  padding: 20px 30px;
+
+  border-radius: 20px;
+
+  font-size: 24px;
+  font-weight: bold;
+
+  color: #4CAF50;
+
+  opacity: 0;
+  pointer-events: none;
+
+  z-index: 9999;
+}
+
+.completeShow{
+  animation: completePop 4.0s ease forwards;
+}
+
+@keyframes completePop{
+
+  0%{
+    opacity:0;
+    transform:translate(-50%,-50%) scale(1.0);
+  }
+
+  20%{
+    opacity:1;
+    transform:translate(-50%,-50%) scale(1.2);
+  }
+
+  40%{
+    transform:translate(-50%,-50%) scale(0.8);
+  }
+
+  80%{
+    opacity:0.6;
+  }
+
+  100%{
+    opacity:0;
+    transform:translate(-50%,-50%) scale(1);
+  }
+
+}
+
+
+
+    #saveBtn {
+  position: fixed;
+
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+
+  z-index: 999;
+
+  padding: 14px 28px;
+
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 999px;
+
+  background: rgba(255,255,255,0.15);
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  color: white;
+
+  box-shadow:
+    0 8px 25px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+
+
+    #progressText{
+  margin-top: 8px;
+  font-size: 16px;
+  color: white;
+  display: none;
+}
+
+
+
+    input[type="file"]::file-selector-button {
+  border: none;
+  border-radius: 12px; /* 角丸 */
+
+  padding: 10px 16px;
+  margin-right: 10px;
+
+  background: #4CAF50;
+  color: white;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+input[type="file"]::file-selector-button:hover {
+  transform: scale(1.03);
+}
+
+
+body {
+  font-family: sans-serif;
+  text-align: center;
+  background: #111;
+  color: white;
+}
+canvas {
+  border: 1px solid white;
+  max-width: 95%;
+}
+img {
+  max-width: 95%;
+}
+button {
+  font-size: 18px;
+  padding: 12px 24px;
+  margin: 10px;
+
+  border: none;
+  border-radius: 999px; /* 角丸 */
+
+  background: #4CAF50;
+  color: white;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+button:hover {
+  transform: scale(1.03);
+}
+
+#progressContainer {
+  width: 90%;
+  height: 20px;
+  background: #333;
+  margin: 10px auto;
+  display: none;
+
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+#progressBar {
+  height: 100%;
+  width: 0%;
+  background: lime;
+
+  border-radius: 999px;
+  transition: width 0.1s linear;
+}
+
+#fileName{
+  margin-top:10px;
+  color:#ccc;
+  font-size:14px;
+}
+</style>
+</head>
+<body>
+
+<h2>AI画像補正</h2>
+
+<input type="file" id="upload" accept="image/*">
+<img id="preview"><br>
+
+<button id="adjustBtn" onclick="startAdjust()" style="display:none;">
+  補正開始
+</button>
+
+
+<div id="progressContainer">
+  <div id="progressBar"></div>
+</div>
+
+<div id="progressText">0%</div>
+
+<br>
+<canvas id="canvas"></canvas>
+
+<div id="completeAnimation">
+  ✅ 補正完了
+</div>
+
+<button id="saveBtn" style="display:none;">
+  💾 保存
+</button>
+
+<script>
+    const completeAnimation =
+document.getElementById("completeAnimation");
+    const progressText = document.getElementById("progressText");
+    const saveBtn = document.getElementById("saveBtn");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const upload = document.getElementById("upload");
+const preview = document.getElementById("preview");
+const fileName = document.getElementById("fileName");
+
+const progressContainer = document.getElementById("progressContainer");
+const progressBar = document.getElementById("progressBar");
+const adjustBtn = document.getElementById("adjustBtn");
+
+
+let imgData = null;
+let originalData = null;
+let currentIndex = 0;
+let globalBrightness = 0;
+
+// 読み込み
+upload.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const fileNameEl = document.getElementById("fileName");
+  if (fileNameEl) {
+    fileNameEl.textContent = file.name;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = function(event) {
+    const img = new Image();
+
+    img.onload = function() {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+
+      ctx.drawImage(img, 0, 0);
+      imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      originalData = new Uint8ClampedArray(imgData.data);
+
+      let total = 0;
+      let count = originalData.length / 4;
+
+      for (let i = 0; i < originalData.length; i += 4) {
+        total += (originalData[i] + originalData[i+1] + originalData[i+2]) / 3;
+      }
+
+  globalBrightness = total / count;
+
+adjustBtn.style.display = "inline-block";
+    };
+
+    img.src = event.target.result;
+    preview.src = event.target.result;
+  };
+
+  reader.readAsDataURL(file);
+});
+
+// 周囲明るさ
+function getLocalBrightness(x, y) {
+  let sum = 0, count = 0;
+
+  for (let dy=-1; dy<=1; dy++) {
+    for (let dx=-1; dx<=1; dx++) {
+      let nx=x+dx, ny=y+dy;
+      if (nx>=0 && ny>=0 && nx<canvas.width && ny<canvas.height) {
+        let idx=(ny*canvas.width+nx)*4;
+        let b=(originalData[idx]+originalData[idx+1]+originalData[idx+2])/3;
+        sum+=b; count++;
+      }
+    }
+  }
+  return sum/count;
+}
+
+// エッジ
+function getEdgeStrength(x, y) {
+  let idx=(y*canvas.width+x)*4;
+  let center=(originalData[idx]+originalData[idx+1]+originalData[idx+2])/3;
+
+  let diff=0, count=0;
+  for (let dy=-1; dy<=1; dy++) {
+    for (let dx=-1; dx<=1; dx++) {
+      let nx=x+dx, ny=y+dy;
+      if (nx>=0 && ny>=0 && nx<canvas.width && ny<canvas.height) {
+        let i=(ny*canvas.width+nx)*4;
+        let b=(originalData[i]+originalData[i+1]+originalData[i+2])/3;
+        diff+=Math.abs(center-b); count++;
+      }
+    }
+  }
+  return diff/count;
+}
+
+// 開始
+function startAdjust() {
+  currentIndex = 0;
+
+  adjustBtn.style.display = "none";
+  saveBtn.style.display = "none";
+
+  progressContainer.style.display = "block";
+
+  progressText.style.display = "block";
+  progressText.textContent = "0%";
+
+  progressBar.style.width = "0%";
+  completeAnimation.classList.remove("completeShow");
+
+void completeAnimation.offsetWidth;
+
+  processPixel(); // ←これを追加
+
+
+}
+
+// 処理
+function processPixel() {
+
+  let data = imgData.data;
+  let width = canvas.width;
+  let batch = 100;
+
+  for (let i = 0; i < batch && currentIndex < data.length; i++) {
+
+    let idx = currentIndex;
+    let p = idx / 4;
+    let x = p % width;
+    let y = Math.floor(p / width);
+
+    let r = originalData[idx];
+    let g = originalData[idx + 1];
+    let b = originalData[idx + 2];
+
+    let brightness = (r + g + b) / 3;
+
+    let darkThreshold = 50;
+    let fadeStart = 80;
+
+    let darkFactor = 1;
+
+    if (brightness < darkThreshold) {
+
+      let avg = (r + g + b) / 3;
+      let saturation = 1.1;
+
+      r = avg + (r - avg) * saturation;
+      g = avg + (g - avg) * saturation;
+      b = avg + (b - avg) * saturation;
+
+      data[idx] = r;
+      data[idx + 1] = g;
+      data[idx + 2] = b;
+
+      currentIndex += 4;
+      continue;
+    }
+
+    if (brightness < fadeStart) {
+      darkFactor =
+        (brightness - darkThreshold) /
+        (fadeStart - darkThreshold);
+    }
+
+    let local = getLocalBrightness(x, y);
+    let edge = getEdgeStrength(x, y);
+    let edgeFactor = Math.max(0, 1 - edge / 50);
+
+    let adjust =
+      (
+        (globalBrightness - brightness) * 0.3 +
+        (local - brightness) * 0.7
+      ) *
+      edgeFactor *
+      darkFactor;
+
+    r += adjust;
+    g += adjust;
+    b += adjust;
+
+    let avg = (r + g + b) / 3;
+    let saturation = 1.2;
+
+    r = avg + (r - avg) * saturation;
+    g = avg + (g - avg) * saturation;
+    b = avg + (b - avg) * saturation;
+
+    let warmth =
+      (local - globalBrightness) * 0.05;
+
+    r += warmth;
+    b -= warmth;
+
+    data[idx] = Math.min(255, Math.max(0, r));
+    data[idx + 1] = Math.min(255, Math.max(0, g));
+    data[idx + 2] = Math.min(255, Math.max(0, b));
+
+    currentIndex += 4;
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  let progress =
+    (currentIndex / data.length) * 100;
+
+  progressBar.style.width = progress + "%";
+  progressText.textContent =
+    Math.floor(progress) + "%";
+
+ if (currentIndex < data.length) {
+
+  requestAnimationFrame(processPixel);
+
+} else {
+
+  setTimeout(() => {
+
+    progressText.textContent = "100%";
+
+    progressContainer.style.display = "none";
+    progressText.style.display = "none";
+
+    adjustBtn.style.display = "inline-block";
+    saveBtn.style.display = "inline-block";
+
+    completeAnimation.classList.remove("completeShow");
+    void completeAnimation.offsetWidth;
+    completeAnimation.classList.add("completeShow");
+
+  }, 500);
+
+}
+}
+
+saveBtn.addEventListener("click", () => {
+  const link = document.createElement("a");
+
+  link.download = "corrected-image.png";
+  link.href = canvas.toDataURL("image/png");
+
+  link.click();
+});
+
+
+</script>
+
+</body>
+</html>
